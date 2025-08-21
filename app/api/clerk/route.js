@@ -2,11 +2,11 @@ import { Webhook } from "svix";
 import connectDB from "@/config/db";
 import User from "@/models/User";
 import { headers } from "next/headers";
-import {  NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 
 export async function POST(req) {
     const wh = new Webhook(process.env.SIGNING_SECRET);
-    const headerPayload = await headers()
+    const headerPayload = headers();
     const svixHeaders = {
         "svix-id": headerPayload.get("svix-id"),
         "svix-timestamp": headerPayload.get("svix-timestamp"),
@@ -14,17 +14,15 @@ export async function POST(req) {
     };
     
     // Get the payload and verify it
-
     const payload = await req.json();
     const body = JSON.stringify(payload);
-    const {data,type} = wh.verify(body, svixHeaders);
+    const { data, type } = wh.verify(body, svixHeaders);
 
-    // Prepare the user data to be saved in the database
-
+    // Prepare the user data
     const userData = {
         _id: data.id,
-        email: data.email_addresses[0].email_addresses,
-        name: `${data.first_name} ${data.last_name}`,
+        email: data.email_addresses?.[0]?.email_address, // ✅ fixed
+        name: `${data.first_name || ""} ${data.last_name || ""}`.trim(),
         image: data.image_url,
     };
 
@@ -38,11 +36,11 @@ export async function POST(req) {
             await User.findByIdAndUpdate(data.id, userData);
             break;
         case "user.deleted":    
-            await User.findByIdAndDelete(data.id, userData);
+            await User.findByIdAndDelete(data.id);
             break;
         default:    
             break;
     }
 
-    return NextRequest.json({message: "Event received"});
+    return NextResponse.json({ message: "Event received" }); // ✅ fixed
 }
